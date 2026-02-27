@@ -1,13 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { AlertsController } from './alerts.controller';
-import { TelegramAlertService } from './telegram-alert.service';
+import { DatabaseModule } from '@db/database.module';
+import { AlertsController } from '@/alerts.controller';
+import { AppController } from '@/app.controller';
+import { AppService } from '@/app.service';
+import { SchedulesModule } from '@schedules/schedules.module';
 
 @Module({
-  imports: [ScheduleModule.forRoot()],
+  imports: [ScheduleModule.forRoot(), DatabaseModule, SchedulesModule],
   controllers: [AppController, AlertsController],
-  providers: [AppService, TelegramAlertService],
+  providers: [AppService],
 })
 export class AppModule {}

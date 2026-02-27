@@ -1,10 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Cron } from '@nestjs/schedule';
+import type { TelegramParseMode } from '@schedules/dto/create-schedule.dto';
 
-const DEFAULT_ALERT_TIMEZONE = 'Asia/Phnom_Penh';
+export const DEFAULT_ALERT_TIMEZONE = 'Asia/Phnom_Penh';
 type AlertTimeSlot = '6:00 PM' | '9:00 PM';
 
-type AlertSendResult = {
+export type AlertSendResult = {
   sent: boolean;
   detail: string;
 };
@@ -17,28 +17,16 @@ export class TelegramAlertService {
   private readonly alertTimezone =
     process.env.ALERT_TIMEZONE ?? DEFAULT_ALERT_TIMEZONE;
 
-  @Cron('0 18 * * *', {
-    name: 'telegramAlert6PM',
-    timeZone: process.env.ALERT_TIMEZONE ?? DEFAULT_ALERT_TIMEZONE,
-  })
-  async send6PmAlert() {
-    return this.sendAlert('6:00 PM');
-  }
-
-  @Cron('0 21 * * *', {
-    name: 'telegramAlert9PM',
-    timeZone: process.env.ALERT_TIMEZONE ?? DEFAULT_ALERT_TIMEZONE,
-  })
-  async send9PmAlert() {
-    return this.sendAlert('9:00 PM');
-  }
-
   async sendNow(time: '6pm' | '9pm') {
     const timeSlot: AlertTimeSlot = time === '6pm' ? '6:00 PM' : '9:00 PM';
-    return this.sendAlert(timeSlot);
+    const message = this.buildReminderMessage(timeSlot);
+    return this.sendMessage(message, 'HTML');
   }
 
-  private async sendAlert(timeSlot: AlertTimeSlot): Promise<AlertSendResult> {
+  async sendMessage(
+    message: string,
+    parseMode: TelegramParseMode = 'HTML',
+  ): Promise<AlertSendResult> {
     if (!this.botToken || !this.chatId) {
       const detail =
         'Skipping Telegram alert. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID.';
@@ -46,11 +34,10 @@ export class TelegramAlertService {
       return { sent: false, detail };
     }
 
-    const message = this.buildHtmlMessage(timeSlot);
-    return this.sendTelegramMessage(message);
+    return this.sendTelegramMessage(message, parseMode);
   }
 
-  private buildHtmlMessage(timeSlot: AlertTimeSlot): string {
+  private buildReminderMessage(timeSlot: AlertTimeSlot): string {
     const now = new Date();
     const timeLabel = new Intl.DateTimeFormat('en-US', {
       dateStyle: 'medium',
@@ -67,7 +54,10 @@ export class TelegramAlertService {
     ].join('\n');
   }
 
-  private async sendTelegramMessage(message: string): Promise<AlertSendResult> {
+  private async sendTelegramMessage(
+    message: string,
+    parseMode: TelegramParseMode,
+  ): Promise<AlertSendResult> {
     const endpoint = `https://api.telegram.org/bot${this.botToken}/sendMessage`;
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -75,7 +65,7 @@ export class TelegramAlertService {
       body: JSON.stringify({
         chat_id: this.chatId,
         text: message,
-        parse_mode: 'HTML',
+        parse_mode: parseMode,
       }),
     });
 

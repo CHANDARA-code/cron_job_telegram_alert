@@ -2,8 +2,8 @@ import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { AppModule } from '../src/app.module';
-import { TelegramAlertService } from '../src/telegram-alert.service';
+import { AppModule } from '@/app.module';
+import { TelegramAlertService } from '@/telegram-alert.service';
 
 type TelegramSendMessagePayload = {
   chat_id: string;
@@ -60,16 +60,22 @@ function isSendNowResponse(value: unknown): value is SendNowResponse {
   );
 }
 
+function getResponseBodyAsUnknown(value: unknown) {
+  return value;
+}
+
 describe('TelegramAlertService (e2e)', () => {
   let app: INestApplication<App>;
   let fetchMock: jest.MockedFunction<typeof fetch>;
 
+  const previousDatabaseUrl = process.env.DATABASE_URL;
   const previousBotToken = process.env.TELEGRAM_BOT_TOKEN;
   const previousChatId = process.env.TELEGRAM_CHAT_ID;
   const previousTimezone = process.env.ALERT_TIMEZONE;
   const originalFetch = global.fetch;
 
   beforeEach(async () => {
+    process.env.DATABASE_URL = ':memory:';
     process.env.TELEGRAM_BOT_TOKEN = '123456789:test-token';
     process.env.TELEGRAM_CHAT_ID = '-1001234567890';
     process.env.ALERT_TIMEZONE = 'Asia/Phnom_Penh';
@@ -93,6 +99,12 @@ describe('TelegramAlertService (e2e)', () => {
   afterEach(async () => {
     await app.close();
 
+    if (previousDatabaseUrl === undefined) {
+      delete process.env.DATABASE_URL;
+    } else {
+      process.env.DATABASE_URL = previousDatabaseUrl;
+    }
+
     if (previousBotToken === undefined) {
       delete process.env.TELEGRAM_BOT_TOKEN;
     } else {
@@ -115,9 +127,9 @@ describe('TelegramAlertService (e2e)', () => {
     jest.restoreAllMocks();
   });
 
-  it('sends a formatted HTML message for the 6:00 PM schedule', async () => {
+  it('sends a formatted HTML message with sendNow(6pm)', async () => {
     const service = app.get(TelegramAlertService);
-    await service.send6PmAlert();
+    await service.sendNow('6pm');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -137,9 +149,9 @@ describe('TelegramAlertService (e2e)', () => {
     expect(requestBody.text).toContain('Time slot: <b>6:00 PM</b>');
   });
 
-  it('sends a formatted HTML message for the 9:00 PM schedule', async () => {
+  it('sends a formatted HTML message with sendNow(9pm)', async () => {
     const service = app.get(TelegramAlertService);
-    await service.send9PmAlert();
+    await service.sendNow('9pm');
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -154,7 +166,7 @@ describe('TelegramAlertService (e2e)', () => {
       .post('/alerts/send-now?time=6pm')
       .expect(201);
 
-    const body: unknown = response.body;
+    const body = getResponseBodyAsUnknown(response.body);
     expect(isSendNowResponse(body)).toBe(true);
     if (!isSendNowResponse(body)) {
       throw new Error('Unexpected send-now response shape');

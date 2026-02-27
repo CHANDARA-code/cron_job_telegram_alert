@@ -25,53 +25,67 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
-## Telegram Alert Schedule
+## Telegram Alert + Schedule Management
 
-This app sends Telegram alerts every day at:
+This app now supports:
 
-- 6:00 PM (`0 18 * * *`)
-- 9:00 PM (`0 21 * * *`)
-
-The message is sent in Telegram `HTML` parse mode.
+- Telegram send API
+- SQLite database with Drizzle ORM
+- Migrations (`db:generate`, `db:migrate`) like Laravel workflow
+- Dynamic cron schedule CRUD
+- List of created schedules
 
 ### Setup
 
 1. Create your bot with `@BotFather` and copy the bot token.
 2. Get your Telegram `chat_id` (group or personal chat).
-3. Create an `.env` file from `.env.example` and set:
+3. Create an `.env` file from `.env.example`:
 
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:your_bot_token
 TELEGRAM_CHAT_ID=-1001234567890
+DATABASE_URL=./data/app.db
 ALERT_TIMEZONE=Asia/Phnom_Penh
 ```
 
-`ALERT_TIMEZONE` is optional. Default is `Asia/Phnom_Penh` (Cambodia).
+### Module resolver aliases
 
-### Test a real Telegram message now
+- `@/*` -> `src/*`
+- `@db/*` -> `src/database/*`
+- `@schedules/*` -> `src/schedules/*`
 
-Start the app and call:
-
-```bash
-curl -X POST "http://localhost:3000/alerts/send-now?time=6pm"
-```
-
-or
+### Database migration workflow
 
 ```bash
-curl -X POST "http://localhost:3000/alerts/send-now?time=9pm"
+# generate SQL migration from schema changes
+yarn db:generate
+
+# apply pending migrations
+yarn db:migrate
+
+# inspect database in browser
+yarn db:studio
 ```
+
+### Schedule CRUD API
+
+- `POST /schedules` create schedule
+- `GET /schedules` list schedules
+- `GET /schedules/created` list created schedules (newest first)
+- `GET /schedules/:id` get one
+- `PATCH /schedules/:id` update
+- `DELETE /schedules/:id` delete
+- `POST /schedules/:id/send-now` send a schedule message immediately
+
+Default behavior:
+- on first start with an empty DB, the app seeds 2 schedules:
+`0 18 * * *` and `0 21 * * *` (Phnom Penh timezone).
 
 ### Swagger API docs
 
-Once the app is running, open:
+Open:
 
 `http://localhost:3000/api/docs`
-
-### About e2e tests
-
-The e2e Telegram test suite mocks `fetch`, so it **does not send real Telegram messages**.  
-Use the manual endpoint above for live delivery checks.
 
 ## Project setup
 

@@ -6,7 +6,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { TelegramAlertService } from './telegram-alert.service';
+import { TelegramAlertService } from '@/telegram-alert.service';
 
 type AlertQueryTime = '6pm' | '9pm';
 

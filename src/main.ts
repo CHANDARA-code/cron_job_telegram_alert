@@ -1,9 +1,9 @@
 import 'dotenv/config';
+import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from './app.module';
-
-const DEFAULT_ALERT_TIMEZONE = 'Asia/Phnom_Penh';
+import { AppModule } from '@/app.module';
+import { DEFAULT_ALERT_TIMEZONE } from '@/telegram-alert.service';
 
 function logStartupTable(appUrl: string) {
   const timezone = process.env.ALERT_TIMEZONE ?? DEFAULT_ALERT_TIMEZONE;
@@ -21,15 +21,25 @@ function logStartupTable(appUrl: string) {
     { Item: 'Daily Alert #2', Value: '9:00 PM (0 21 * * *)' },
     { Item: 'Send Now', Value: `POST ${appUrl}/alerts/send-now?time=6pm` },
     { Item: 'Send Now', Value: `POST ${appUrl}/alerts/send-now?time=9pm` },
+    { Item: 'Schedules API', Value: `GET ${appUrl}/schedules` },
+    { Item: 'Create Schedule', Value: `POST ${appUrl}/schedules` },
   ]);
 }
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.useGlobalPipes(
+    new ValidationPipe({
+      transform: true,
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
+
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Telegram Alert API')
     .setDescription(
-      'API for triggering Telegram alerts and monitoring scheduled reminders.',
+      'API for triggering Telegram alerts and managing cron schedules.',
     )
     .setVersion('1.0')
     .build();
