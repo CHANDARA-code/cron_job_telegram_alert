@@ -1,4 +1,4 @@
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -75,6 +75,13 @@ describe('SchedulesController (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     await app.init();
   });
 
@@ -167,5 +174,58 @@ describe('SchedulesController (e2e)', () => {
     await request(app.getHttpServer())
       .get(`/schedules/${scheduleId}`)
       .expect(404);
+  });
+
+  it('rejects invalid parseMode in create schedule payload', async () => {
+    await request(app.getHttpServer())
+      .post('/schedules')
+      .send({
+        name: 'Invalid mode',
+        cronExpression: '0 8 * * *',
+        timezone: 'Asia/Phnom_Penh',
+        message: 'hello',
+        parseMode: 'Markdown',
+      })
+      .expect(400);
+  });
+
+  it('rejects invalid cron expression in create schedule payload', async () => {
+    await request(app.getHttpServer())
+      .post('/schedules')
+      .send({
+        name: 'Invalid cron',
+        cronExpression: 'not-a-cron',
+        timezone: 'Asia/Phnom_Penh',
+        message: 'hello',
+        parseMode: 'HTML',
+      })
+      .expect(400);
+  });
+
+  it('rejects invalid timezone in create schedule payload', async () => {
+    await request(app.getHttpServer())
+      .post('/schedules')
+      .send({
+        name: 'Invalid timezone',
+        cronExpression: '0 10 * * *',
+        timezone: 'Mars/Phobos',
+        message: 'hello',
+        parseMode: 'HTML',
+      })
+      .expect(400);
+  });
+
+  it('rejects non-whitelisted fields in create schedule payload', async () => {
+    await request(app.getHttpServer())
+      .post('/schedules')
+      .send({
+        name: 'Unknown field test',
+        cronExpression: '0 10 * * *',
+        timezone: 'Asia/Phnom_Penh',
+        message: 'hello',
+        parseMode: 'HTML',
+        hacked: true,
+      })
+      .expect(400);
   });
 });
