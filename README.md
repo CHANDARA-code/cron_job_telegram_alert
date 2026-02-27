@@ -25,6 +25,54 @@
 
 [Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
 
+## Telegram Alert Schedule
+
+This app sends Telegram alerts every day at:
+
+- 6:00 PM (`0 18 * * *`)
+- 9:00 PM (`0 21 * * *`)
+
+The message is sent in Telegram `HTML` parse mode.
+
+### Setup
+
+1. Create your bot with `@BotFather` and copy the bot token.
+2. Get your Telegram `chat_id` (group or personal chat).
+3. Create an `.env` file from `.env.example` and set:
+
+```bash
+TELEGRAM_BOT_TOKEN=123456789:your_bot_token
+TELEGRAM_CHAT_ID=-1001234567890
+ALERT_TIMEZONE=Asia/Phnom_Penh
+```
+
+`ALERT_TIMEZONE` is optional. Default is `Asia/Phnom_Penh` (Cambodia).
+
+### Test a real Telegram message now
+
+Start the app and call:
+
+```bash
+curl -X POST "http://localhost:3000/alerts/send-now?time=6pm"
+```
+
+or
+
+```bash
+curl -X POST "http://localhost:3000/alerts/send-now?time=9pm"
+```
+
+### Swagger API docs
+
+Once the app is running, open:
+
+`http://localhost:3000/api/docs`
+
+### About e2e tests
+
+The e2e Telegram test suite mocks `fetch`, so it **does not send real Telegram messages**.  
+Use the manual endpoint above for live delivery checks.
+
 ## Project setup
 
 ```bash
