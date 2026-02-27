@@ -44,9 +44,15 @@ This app now supports:
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:your_bot_token
 TELEGRAM_CHAT_ID=-1001234567890
+ADMIN_API_KEY=change-me
 DATABASE_URL=./data/app.db
 ALERT_TIMEZONE=Asia/Phnom_Penh
+TELEGRAM_REQUEST_TIMEOUT_MS=5000
+TELEGRAM_MAX_RETRIES=3
+TELEGRAM_RETRY_BASE_DELAY_MS=500
 ```
+
+`ADMIN_API_KEY` is required for all write/trigger endpoints via `x-api-key` header.
 
 ### Module resolver aliases
 
@@ -69,23 +75,42 @@ yarn db:studio
 
 ### Schedule CRUD API
 
-- `POST /schedules` create schedule
+- `POST /schedules` create schedule (`x-api-key` required)
 - `GET /schedules` list schedules
 - `GET /schedules/created` list created schedules (newest first)
 - `GET /schedules/:id` get one
-- `PATCH /schedules/:id` update
-- `DELETE /schedules/:id` delete
-- `POST /schedules/:id/send-now` send a schedule message immediately
+- `PATCH /schedules/:id` update (`x-api-key` required)
+- `DELETE /schedules/:id` delete (`x-api-key` required)
+- `POST /schedules/:id/send-now` send a schedule message immediately (`x-api-key` required)
+
+`POST /alerts/send-now?time=6pm|9pm` also requires `x-api-key`.
 
 Default behavior:
 - on first start with an empty DB, the app seeds 2 schedules:
 `0 18 * * *` and `0 21 * * *` (Phnom Penh timezone).
+
+Each schedule tracks delivery audit fields: `lastRunAt`, `lastStatus`, `lastError`, `lastSentAt`, `failureCount`.
 
 ### Swagger API docs
 
 Open:
 
 `http://localhost:3000/api/docs`
+
+### Health and metrics endpoints
+
+- `GET /health/live` liveness probe
+- `GET /health/ready` readiness probe (env + database)
+- `GET /metrics` Prometheus metrics
+
+Prometheus counters included:
+
+- `telegram_alert_send_total{result="success|failure"}`
+- `telegram_alert_send_retry_total`
+
+Alert rule example is provided at:
+
+`monitoring/alerts/telegram-alert-rules.yml`
 
 ## Project setup
 

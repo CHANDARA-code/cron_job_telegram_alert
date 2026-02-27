@@ -4,8 +4,16 @@ import {
   InternalServerErrorException,
   Post,
   Query,
+  UseGuards,
 } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiHeader,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { API_KEY_HEADER, ApiKeyGuard } from '@/auth/api-key.guard';
 import { TelegramAlertService } from '@/telegram-alert.service';
 
 type AlertQueryTime = '6pm' | '9pm';
@@ -16,7 +24,13 @@ export class AlertsController {
   constructor(private readonly telegramAlertService: TelegramAlertService) {}
 
   @Post('send-now')
+  @UseGuards(ApiKeyGuard)
   @ApiOperation({ summary: 'Send Telegram alert immediately' })
+  @ApiHeader({
+    name: API_KEY_HEADER,
+    required: true,
+    description: 'Admin API key used to authorize alert triggers.',
+  })
   @ApiQuery({
     name: 'time',
     required: true,

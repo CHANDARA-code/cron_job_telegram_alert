@@ -9,6 +9,11 @@ export const schedules = sqliteTable('schedules', {
   message: text('message').notNull(),
   parseMode: text('parse_mode').notNull().default('HTML'),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  lastRunAt: integer('last_run_at', { mode: 'timestamp_ms' }),
+  lastStatus: text('last_status'),
+  lastError: text('last_error'),
+  lastSentAt: integer('last_sent_at', { mode: 'timestamp_ms' }),
+  failureCount: integer('failure_count').notNull().default(0),
   createdAt: integer('created_at', { mode: 'timestamp_ms' })
     .notNull()
     .default(sql`(unixepoch() * 1000)`),

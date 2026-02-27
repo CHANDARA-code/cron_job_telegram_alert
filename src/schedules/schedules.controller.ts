@@ -7,14 +7,17 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiCreatedResponse,
+  ApiHeader,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+import { API_KEY_HEADER, ApiKeyGuard } from '@/auth/api-key.guard';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { SchedulesService } from './schedules.service';
@@ -25,7 +28,13 @@ export class SchedulesController {
   constructor(private readonly schedulesService: SchedulesService) {}
 
   @Post()
+  @UseGuards(ApiKeyGuard)
   @ApiOperation({ summary: 'Create a schedule' })
+  @ApiHeader({
+    name: API_KEY_HEADER,
+    required: true,
+    description: 'Admin API key required for write actions.',
+  })
   @ApiCreatedResponse({ description: 'Schedule created.' })
   create(@Body() dto: CreateScheduleDto) {
     return this.schedulesService.create(dto);
@@ -54,7 +63,13 @@ export class SchedulesController {
   }
 
   @Patch(':id')
+  @UseGuards(ApiKeyGuard)
   @ApiOperation({ summary: 'Update schedule' })
+  @ApiHeader({
+    name: API_KEY_HEADER,
+    required: true,
+    description: 'Admin API key required for write actions.',
+  })
   @ApiParam({ name: 'id', type: Number })
   @ApiOkResponse({ description: 'Schedule updated.' })
   update(
@@ -65,7 +80,13 @@ export class SchedulesController {
   }
 
   @Delete(':id')
+  @UseGuards(ApiKeyGuard)
   @ApiOperation({ summary: 'Delete schedule' })
+  @ApiHeader({
+    name: API_KEY_HEADER,
+    required: true,
+    description: 'Admin API key required for write actions.',
+  })
   @ApiParam({ name: 'id', type: Number })
   @ApiOkResponse({ description: 'Schedule deleted.' })
   remove(@Param('id', ParseIntPipe) id: number) {
@@ -73,7 +94,13 @@ export class SchedulesController {
   }
 
   @Post(':id/send-now')
+  @UseGuards(ApiKeyGuard)
   @ApiOperation({ summary: 'Send this schedule message immediately' })
+  @ApiHeader({
+    name: API_KEY_HEADER,
+    required: true,
+    description: 'Admin API key required for write actions.',
+  })
   @ApiParam({ name: 'id', type: Number })
   @ApiOkResponse({ description: 'Message sent result.' })
   sendNow(@Param('id', ParseIntPipe) id: number) {

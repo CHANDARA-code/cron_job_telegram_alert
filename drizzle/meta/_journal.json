@@ -8,6 +8,13 @@
       "when": 1772156734082,
       "tag": "0000_flowery_ego",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1772166904462,
+      "tag": "0001_outstanding_energizer",
+      "breakpoints": true
     }
   ]
 }

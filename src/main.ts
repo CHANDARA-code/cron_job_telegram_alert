@@ -3,10 +3,9 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from '@/app.module';
-import { DEFAULT_ALERT_TIMEZONE } from '@/telegram-alert.service';
+import { loadRuntimeConfig } from '@/config/env.validation';
 
-function logStartupTable(appUrl: string) {
-  const timezone = process.env.ALERT_TIMEZONE ?? DEFAULT_ALERT_TIMEZONE;
+function logStartupTable(appUrl: string, timezone: string) {
   const bold = '\x1b[1m';
   const cyan = '\x1b[36m';
   const reset = '\x1b[0m';
@@ -27,6 +26,7 @@ function logStartupTable(appUrl: string) {
 }
 
 async function bootstrap() {
+  const runtimeConfig = loadRuntimeConfig();
   const app = await NestFactory.create(AppModule);
   app.useGlobalPipes(
     new ValidationPipe({
@@ -49,6 +49,6 @@ async function bootstrap() {
 
   const port = Number(process.env.PORT ?? 3000);
   await app.listen(port);
-  logStartupTable(`http://localhost:${port}`);
+  logStartupTable(`http://localhost:${port}`, runtimeConfig.alertTimezone);
 }
 void bootstrap();

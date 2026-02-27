@@ -1,0 +1,12 @@
+groups:
+  - name: telegram-alert-service
+    rules:
+      - alert: TelegramAlertSendFailuresIncreasing
+        expr: increase(telegram_alert_send_total{result="failure"}[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          service: cron-job-telegram-alert
+        annotations:
+          summary: "Telegram send failures are increasing"
+          description: "telegram_alert_send_total{result='failure'} has increased in the last 5 minutes and persisted for 5 minutes."

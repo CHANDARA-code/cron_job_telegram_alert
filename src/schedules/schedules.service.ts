@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
 import { CronJob, validateCronExpression } from 'cron';
-import { desc, eq } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 import { DRIZZLE_DB } from '@db/database.constants';
 import type { DrizzleDatabase } from '@db/database.types';
 import {
@@ -141,10 +141,18 @@ export class SchedulesService implements OnModuleInit {
 
   async sendNow(id: number): Promise<AlertSendResult> {
     const schedule = this.findScheduleOrThrow(id);
-    return this.telegramAlertService.sendMessage(
+    const result = await this.telegramAlertService.sendMessage(
       schedule.message,
       schedule.parseMode as TelegramParseMode,
     );
+
+    if (result.sent) {
+      this.markScheduleSendSuccess(id);
+    } else {
+      this.markScheduleSendFailure(id, result.detail);
+    }
+
+    return result;
   }
 
   private ensureDefaultSchedules() {
@@ -217,26 +225,72 @@ export class SchedulesService implements OnModuleInit {
   }
 
   private async runScheduledJob(id: number) {
-    const schedule = this.findScheduleOrThrow(id);
-    const result = await this.telegramAlertService.sendMessage(
-      schedule.message,
-      schedule.parseMode as TelegramParseMode,
-    );
+    try {
+      const schedule = this.findScheduleOrThrow(id);
+      const result = await this.telegramAlertService.sendMessage(
+        schedule.message,
+        schedule.parseMode as TelegramParseMode,
+      );
 
-    if (!result.sent) {
+      if (result.sent) {
+        this.markScheduleSendSuccess(id);
+        return;
+      }
+
+      this.markScheduleSendFailure(id, result.detail);
       this.logger.error(
         `Schedule #${id} failed to send Telegram message: ${result.detail}`,
       );
+    } catch (error) {
+      const detail =
+        error instanceof Error ? error.message : 'Unknown scheduled job error.';
+      this.markScheduleSendFailure(id, detail);
+      this.logger.error(`Schedule #${id} failed with exception: ${detail}`);
     }
   }
 
-  private findScheduleOrThrow(id: number): ScheduleRecord {
-    const schedule = this.db
+  private markScheduleSendSuccess(id: number) {
+    const now = new Date();
+    this.db
+      .update(schedules)
+      .set({
+        updatedAt: now,
+        lastRunAt: now,
+        lastSentAt: now,
+        lastStatus: 'SUCCESS',
+        lastError: null,
+        failureCount: 0,
+      })
+      .where(eq(schedules.id, id))
+      .run();
+  }
+
+  private markScheduleSendFailure(id: number, detail: string) {
+    const now = new Date();
+    this.db
+      .update(schedules)
+      .set({
+        updatedAt: now,
+        lastRunAt: now,
+        lastStatus: 'FAILED',
+        lastError: detail,
+        failureCount: sql`${schedules.failureCount} + 1`,
+      })
+      .where(eq(schedules.id, id))
+      .run();
+  }
+
+  private findScheduleById(id: number): ScheduleRecord | undefined {
+    return this.db
       .select()
       .from(schedules)
       .where(eq(schedules.id, id))
       .limit(1)
       .get();
+  }
+
+  private findScheduleOrThrow(id: number): ScheduleRecord {
+    const schedule = this.findScheduleById(id);
 
     if (!schedule) {
       throw new NotFoundException(`Schedule with id ${id} not found.`);

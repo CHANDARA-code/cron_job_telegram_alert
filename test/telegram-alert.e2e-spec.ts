@@ -67,11 +67,13 @@ function getResponseBodyAsUnknown(value: unknown) {
 describe('TelegramAlertService (e2e)', () => {
   let app: INestApplication<App>;
   let fetchMock: jest.MockedFunction<typeof fetch>;
+  const adminApiKey = 'test-admin-key';
 
   const previousDatabaseUrl = process.env.DATABASE_URL;
   const previousBotToken = process.env.TELEGRAM_BOT_TOKEN;
   const previousChatId = process.env.TELEGRAM_CHAT_ID;
   const previousTimezone = process.env.ALERT_TIMEZONE;
+  const previousAdminApiKey = process.env.ADMIN_API_KEY;
   const originalFetch = global.fetch;
 
   beforeEach(async () => {
@@ -79,6 +81,7 @@ describe('TelegramAlertService (e2e)', () => {
     process.env.TELEGRAM_BOT_TOKEN = '123456789:test-token';
     process.env.TELEGRAM_CHAT_ID = '-1001234567890';
     process.env.ALERT_TIMEZONE = 'Asia/Phnom_Penh';
+    process.env.ADMIN_API_KEY = adminApiKey;
 
     fetchMock = jest.fn().mockResolvedValue({
       ok: true,
@@ -130,6 +133,12 @@ describe('TelegramAlertService (e2e)', () => {
       process.env.ALERT_TIMEZONE = previousTimezone;
     }
 
+    if (previousAdminApiKey === undefined) {
+      delete process.env.ADMIN_API_KEY;
+    } else {
+      process.env.ADMIN_API_KEY = previousAdminApiKey;
+    }
+
     global.fetch = originalFetch;
     jest.restoreAllMocks();
   });
@@ -171,6 +180,7 @@ describe('TelegramAlertService (e2e)', () => {
   it('triggers alert via POST /alerts/send-now', async () => {
     const response = await request(app.getHttpServer())
       .post('/alerts/send-now?time=6pm')
+      .set('x-api-key', adminApiKey)
       .expect(201);
 
     const body = getResponseBodyAsUnknown(response.body);
@@ -184,9 +194,67 @@ describe('TelegramAlertService (e2e)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('exposes success and retry counters in /metrics', async () => {
+    fetchMock.mockReset();
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        text: () => Promise.resolve('server error'),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: () => Promise.resolve('ok'),
+      } as Response);
+
+    await request(app.getHttpServer())
+      .post('/alerts/send-now?time=6pm')
+      .set('x-api-key', adminApiKey)
+      .expect(201);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const metricsResponse = await request(app.getHttpServer())
+      .get('/metrics')
+      .expect(200);
+    expect(metricsResponse.text).toContain(
+      'telegram_alert_send_total{result="success"} 1',
+    );
+    expect(metricsResponse.text).toContain('telegram_alert_send_retry_total 1');
+  });
+
+  it('increments failure counter when Telegram send fails', async () => {
+    fetchMock.mockReset();
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: () => Promise.resolve('bad request'),
+    } as Response);
+
+    await request(app.getHttpServer())
+      .post('/alerts/send-now?time=6pm')
+      .set('x-api-key', adminApiKey)
+      .expect(500);
+
+    const metricsResponse = await request(app.getHttpServer())
+      .get('/metrics')
+      .expect(200);
+    expect(metricsResponse.text).toContain(
+      'telegram_alert_send_total{result="failure"} 1',
+    );
+  });
+
   it('returns 400 for invalid alert time', async () => {
     await request(app.getHttpServer())
       .post('/alerts/send-now?time=invalid')
+      .set('x-api-key', adminApiKey)
       .expect(400);
+  });
+
+  it('returns 401 for missing x-api-key', async () => {
+    await request(app.getHttpServer())
+      .post('/alerts/send-now?time=6pm')
+      .expect(401);
   });
 });

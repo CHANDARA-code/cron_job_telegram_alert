@@ -49,11 +49,13 @@ function isDeleteResponse(value: unknown): value is { success: boolean } {
 describe('SchedulesController (e2e)', () => {
   let app: INestApplication<App>;
   let fetchMock: jest.MockedFunction<typeof fetch>;
+  const adminApiKey = 'test-admin-key';
 
   const previousDatabaseUrl = process.env.DATABASE_URL;
   const previousBotToken = process.env.TELEGRAM_BOT_TOKEN;
   const previousChatId = process.env.TELEGRAM_CHAT_ID;
   const previousTimezone = process.env.ALERT_TIMEZONE;
+  const previousAdminApiKey = process.env.ADMIN_API_KEY;
   const originalFetch = global.fetch;
 
   beforeEach(async () => {
@@ -61,6 +63,7 @@ describe('SchedulesController (e2e)', () => {
     process.env.TELEGRAM_BOT_TOKEN = '123456789:test-token';
     process.env.TELEGRAM_CHAT_ID = '-1001234567890';
     process.env.ALERT_TIMEZONE = 'Asia/Phnom_Penh';
+    process.env.ADMIN_API_KEY = adminApiKey;
 
     fetchMock = jest.fn().mockResolvedValue({
       ok: true,
@@ -112,6 +115,12 @@ describe('SchedulesController (e2e)', () => {
       process.env.ALERT_TIMEZONE = previousTimezone;
     }
 
+    if (previousAdminApiKey === undefined) {
+      delete process.env.ADMIN_API_KEY;
+    } else {
+      process.env.ADMIN_API_KEY = previousAdminApiKey;
+    }
+
     global.fetch = originalFetch;
     jest.restoreAllMocks();
   });
@@ -130,6 +139,7 @@ describe('SchedulesController (e2e)', () => {
 
     const createResponse = await request(app.getHttpServer())
       .post('/schedules')
+      .set('x-api-key', adminApiKey)
       .send({
         name: 'Lunch reminder',
         cronExpression: '0 12 * * *',
@@ -151,17 +161,20 @@ describe('SchedulesController (e2e)', () => {
 
     await request(app.getHttpServer())
       .patch(`/schedules/${scheduleId}`)
+      .set('x-api-key', adminApiKey)
       .send({ message: '<b>Updated lunch</b>', isActive: false })
       .expect(200);
 
     await request(app.getHttpServer())
       .post(`/schedules/${scheduleId}/send-now`)
+      .set('x-api-key', adminApiKey)
       .expect(201);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
     const deleteResponse = await request(app.getHttpServer())
       .delete(`/schedules/${scheduleId}`)
+      .set('x-api-key', adminApiKey)
       .expect(200);
 
     const deleteBody: unknown = deleteResponse.body;
@@ -179,6 +192,7 @@ describe('SchedulesController (e2e)', () => {
   it('rejects invalid parseMode in create schedule payload', async () => {
     await request(app.getHttpServer())
       .post('/schedules')
+      .set('x-api-key', adminApiKey)
       .send({
         name: 'Invalid mode',
         cronExpression: '0 8 * * *',
@@ -192,6 +206,7 @@ describe('SchedulesController (e2e)', () => {
   it('rejects invalid cron expression in create schedule payload', async () => {
     await request(app.getHttpServer())
       .post('/schedules')
+      .set('x-api-key', adminApiKey)
       .send({
         name: 'Invalid cron',
         cronExpression: 'not-a-cron',
@@ -205,6 +220,7 @@ describe('SchedulesController (e2e)', () => {
   it('rejects invalid timezone in create schedule payload', async () => {
     await request(app.getHttpServer())
       .post('/schedules')
+      .set('x-api-key', adminApiKey)
       .send({
         name: 'Invalid timezone',
         cronExpression: '0 10 * * *',
@@ -218,6 +234,7 @@ describe('SchedulesController (e2e)', () => {
   it('rejects non-whitelisted fields in create schedule payload', async () => {
     await request(app.getHttpServer())
       .post('/schedules')
+      .set('x-api-key', adminApiKey)
       .send({
         name: 'Unknown field test',
         cronExpression: '0 10 * * *',
@@ -227,5 +244,17 @@ describe('SchedulesController (e2e)', () => {
         hacked: true,
       })
       .expect(400);
+  });
+
+  it('rejects create schedule request when x-api-key is missing', async () => {
+    await request(app.getHttpServer())
+      .post('/schedules')
+      .send({
+        name: 'No auth',
+        cronExpression: '0 10 * * *',
+        timezone: 'Asia/Phnom_Penh',
+        message: 'hello',
+      })
+      .expect(401);
   });
 });
