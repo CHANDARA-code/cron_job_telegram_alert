@@ -14,8 +14,30 @@ type ScheduleApiModel = {
   isActive: boolean;
 };
 
+type ApiEnvelope<T> = {
+  message?: string;
+  data?: T;
+  code: number;
+  expextion?: unknown;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object';
+}
+
+function isApiEnvelope<T>(
+  value: unknown,
+  dataGuard?: (input: unknown) => input is T,
+): value is ApiEnvelope<T> {
+  if (!isRecord(value) || typeof value.code !== 'number') {
+    return false;
+  }
+
+  if (!('data' in value) || !dataGuard) {
+    return true;
+  }
+
+  return dataGuard(value.data);
 }
 
 function isSchedule(value: unknown): value is ScheduleApiModel {
@@ -131,11 +153,17 @@ describe('SchedulesController (e2e)', () => {
       .expect(200);
 
     const createdListBody: unknown = createdListResponse.body;
-    expect(isScheduleList(createdListBody)).toBe(true);
-    if (!isScheduleList(createdListBody)) {
-      throw new Error('Expected /schedules/created to return a list.');
+    expect(
+      isApiEnvelope<ScheduleApiModel[]>(createdListBody, isScheduleList),
+    ).toBe(true);
+    if (
+      !isApiEnvelope<ScheduleApiModel[]>(createdListBody, isScheduleList) ||
+      !createdListBody.data
+    ) {
+      throw new Error('Expected /schedules/created to return wrapped list.');
     }
-    expect(createdListBody.length).toBeGreaterThanOrEqual(2);
+    expect(createdListBody.code).toBe(200);
+    expect(createdListBody.data.length).toBeGreaterThanOrEqual(2);
 
     const createResponse = await request(app.getHttpServer())
       .post('/schedules')
@@ -151,13 +179,17 @@ describe('SchedulesController (e2e)', () => {
       .expect(201);
 
     const createBody: unknown = createResponse.body;
-    expect(isSchedule(createBody)).toBe(true);
-    if (!isSchedule(createBody)) {
-      throw new Error('Expected created schedule object.');
+    expect(isApiEnvelope<ScheduleApiModel>(createBody, isSchedule)).toBe(true);
+    if (
+      !isApiEnvelope<ScheduleApiModel>(createBody, isSchedule) ||
+      !createBody.data
+    ) {
+      throw new Error('Expected created schedule envelope.');
     }
-    expect(createBody.name).toBe('Lunch reminder');
+    expect(createBody.code).toBe(201);
+    expect(createBody.data.name).toBe('Lunch reminder');
 
-    const scheduleId = createBody.id;
+    const scheduleId = createBody.data.id;
 
     await request(app.getHttpServer())
       .patch(`/schedules/${scheduleId}`)
@@ -178,11 +210,17 @@ describe('SchedulesController (e2e)', () => {
       .expect(200);
 
     const deleteBody: unknown = deleteResponse.body;
-    expect(isDeleteResponse(deleteBody)).toBe(true);
-    if (!isDeleteResponse(deleteBody)) {
-      throw new Error('Expected delete response payload.');
+    expect(
+      isApiEnvelope<{ success: boolean }>(deleteBody, isDeleteResponse),
+    ).toBe(true);
+    if (
+      !isApiEnvelope<{ success: boolean }>(deleteBody, isDeleteResponse) ||
+      !deleteBody.data
+    ) {
+      throw new Error('Expected wrapped delete response.');
     }
-    expect(deleteBody.success).toBe(true);
+    expect(deleteBody.code).toBe(200);
+    expect(deleteBody.data.success).toBe(true);
 
     await request(app.getHttpServer())
       .get(`/schedules/${scheduleId}`)

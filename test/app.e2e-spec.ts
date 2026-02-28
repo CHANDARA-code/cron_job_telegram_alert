@@ -18,8 +18,30 @@ type ReadyResponse = {
   };
 };
 
+type ApiEnvelope<T> = {
+  message?: string;
+  data?: T;
+  code: number;
+  expextion?: unknown;
+};
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object';
+}
+
+function isApiEnvelope<T>(
+  value: unknown,
+  dataGuard?: (input: unknown) => input is T,
+): value is ApiEnvelope<T> {
+  if (!isRecord(value) || typeof value.code !== 'number') {
+    return false;
+  }
+
+  if (!('data' in value) || !dataGuard) {
+    return true;
+  }
+
+  return dataGuard(value.data);
 }
 
 function isLiveResponse(value: unknown): value is LiveResponse {
@@ -120,7 +142,16 @@ describe('AppController (e2e)', () => {
     return request(app.getHttpServer())
       .get('/')
       .expect(200)
-      .expect('Hello World!');
+      .expect((response) => {
+        const body: unknown = response.body;
+        expect(isApiEnvelope<string>(body)).toBe(true);
+        if (!isApiEnvelope<string>(body)) {
+          throw new Error('Unexpected / response envelope.');
+        }
+
+        expect(body.code).toBe(200);
+        expect(body.data).toBe('Hello World!');
+      });
   });
 
   it('/health/live (GET)', async () => {
@@ -129,14 +160,15 @@ describe('AppController (e2e)', () => {
       .expect(200);
 
     const body: unknown = response.body;
-    expect(isLiveResponse(body)).toBe(true);
-    if (!isLiveResponse(body)) {
-      throw new Error('Unexpected /health/live response shape.');
+    expect(isApiEnvelope<LiveResponse>(body, isLiveResponse)).toBe(true);
+    if (!isApiEnvelope<LiveResponse>(body, isLiveResponse) || !body.data) {
+      throw new Error('Unexpected /health/live response envelope.');
     }
 
-    expect(body.status).toBe('ok');
-    expect(typeof body.timestamp).toBe('string');
-    expect(typeof body.uptimeSeconds).toBe('number');
+    expect(body.code).toBe(200);
+    expect(body.data.status).toBe('ok');
+    expect(typeof body.data.timestamp).toBe('string');
+    expect(typeof body.data.uptimeSeconds).toBe('number');
   });
 
   it('/health/ready (GET)', async () => {
@@ -145,14 +177,15 @@ describe('AppController (e2e)', () => {
       .expect(200);
 
     const body: unknown = response.body;
-    expect(isReadyResponse(body)).toBe(true);
-    if (!isReadyResponse(body)) {
-      throw new Error('Unexpected /health/ready response shape.');
+    expect(isApiEnvelope<ReadyResponse>(body, isReadyResponse)).toBe(true);
+    if (!isApiEnvelope<ReadyResponse>(body, isReadyResponse) || !body.data) {
+      throw new Error('Unexpected /health/ready response envelope.');
     }
 
-    expect(body.status).toBe('ready');
-    expect(body.checks.env.ok).toBe(true);
-    expect(body.checks.database.ok).toBe(true);
+    expect(body.code).toBe(200);
+    expect(body.data.status).toBe('ready');
+    expect(body.data.checks.env.ok).toBe(true);
+    expect(body.data.checks.database.ok).toBe(true);
   });
 
   it('/metrics (GET)', async () => {

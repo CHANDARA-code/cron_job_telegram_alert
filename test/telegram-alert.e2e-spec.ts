@@ -17,6 +17,13 @@ type SendNowResponse = {
   time: string;
 };
 
+type ApiEnvelope<T> = {
+  message?: string;
+  data?: T;
+  code: number;
+  expextion?: unknown;
+};
+
 function isTelegramSendMessagePayload(
   value: unknown,
 ): value is TelegramSendMessagePayload {
@@ -62,6 +69,25 @@ function isSendNowResponse(value: unknown): value is SendNowResponse {
 
 function getResponseBodyAsUnknown(value: unknown) {
   return value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object';
+}
+
+function isApiEnvelope<T>(
+  value: unknown,
+  dataGuard?: (input: unknown) => input is T,
+): value is ApiEnvelope<T> {
+  if (!isRecord(value) || typeof value.code !== 'number') {
+    return false;
+  }
+
+  if (!('data' in value) || !dataGuard) {
+    return true;
+  }
+
+  return dataGuard(value.data);
 }
 
 describe('TelegramAlertService (e2e)', () => {
@@ -184,13 +210,17 @@ describe('TelegramAlertService (e2e)', () => {
       .expect(201);
 
     const body = getResponseBodyAsUnknown(response.body);
-    expect(isSendNowResponse(body)).toBe(true);
-    if (!isSendNowResponse(body)) {
-      throw new Error('Unexpected send-now response shape');
+    expect(isApiEnvelope<SendNowResponse>(body, isSendNowResponse)).toBe(true);
+    if (
+      !isApiEnvelope<SendNowResponse>(body, isSendNowResponse) ||
+      !body.data
+    ) {
+      throw new Error('Unexpected send-now response envelope');
     }
 
-    expect(body.success).toBe(true);
-    expect(body.time).toBe('6pm');
+    expect(body.code).toBe(201);
+    expect(body.data.success).toBe(true);
+    expect(body.data.time).toBe('6pm');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -253,8 +283,16 @@ describe('TelegramAlertService (e2e)', () => {
   });
 
   it('returns 401 for missing x-api-key', async () => {
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
       .post('/alerts/send-now?time=6pm')
       .expect(401);
+
+    const body: unknown = response.body;
+    expect(isApiEnvelope(body)).toBe(true);
+    if (!isApiEnvelope(body)) {
+      throw new Error('Unexpected unauthorized response envelope.');
+    }
+    expect(body.code).toBe(401);
+    expect(typeof body.expextion).not.toBe('undefined');
   });
 });

@@ -85,6 +85,24 @@ yarn db:studio
 
 `POST /alerts/send-now?time=6pm|9pm` also requires `x-api-key`.
 
+### Standard API response format
+
+All JSON endpoints return this envelope:
+
+```json
+{
+  "message": "Human-readable status",
+  "data": {},
+  "code": 200,
+  "expextion": null
+}
+```
+
+Notes:
+- `data` is omitted for some error responses.
+- `expextion` contains technical details for debugging on failures.
+- `/metrics` is plain text for Prometheus and is intentionally not wrapped.
+
 Default behavior:
 - on first start with an empty DB, the app seeds 2 schedules:
 `0 18 * * *` and `0 21 * * *` (Phnom Penh timezone).
